@@ -30,7 +30,7 @@ const handleCapture = (file) => {
     <Card class="transition-all duration-300">
         <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-brand-light-blue to-brand-dark-blue opacity-80"></div>
         
-        <div class="p-8 sm:p-12">
+        <div class="p-4 sm:p-8 md:p-12">
             <template v-if="showCamera">
                 <CameraCapture 
                     @capture="handleCapture"

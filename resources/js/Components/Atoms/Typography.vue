@@ -19,7 +19,7 @@ const tags = {
 };
 
 const classes = {
-    h1: 'text-4xl font-extrabold tracking-tight text-gray-900 dark:text-white sm:text-5xl md:text-6xl mb-6',
+    h1: 'text-3xl font-extrabold tracking-tight text-gray-900 dark:text-white sm:text-4xl md:text-5xl lg:text-6xl mb-6',
     h2: 'text-2xl font-bold tracking-tight text-gray-900 dark:text-white mb-4',
     h3: 'text-xl font-bold tracking-tight text-gray-900 dark:text-white mb-2',
     body: 'text-base text-gray-600 dark:text-gray-300 sm:text-lg leading-relaxed',

@@ -71,17 +71,18 @@ const formatCurrency = (amount) => {
             <!-- Extraction Results -->
             <div class="w-full">
                 <Card>
-                    <div class="p-8 sm:p-12 relative">
+                    <div class="p-4 sm:p-8 md:p-12 relative">
                         
                         <!-- Top Right View Original Button -->
-                        <div class="absolute top-6 right-6 z-10">
+                        <div class="absolute top-4 right-4 sm:top-6 sm:right-6 z-10">
                             <button 
                                 v-if="imagePreview"
                                 @click="showOriginal = true"
-                                class="flex items-center gap-2 px-4 py-2 rounded-full bg-white dark:bg-gray-700 shadow-sm border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-200 hover:text-primary-600 dark:hover:text-primary-400 hover:border-primary-200 dark:hover:border-primary-500 transition-all duration-200 text-sm font-medium"
+                                class="flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 rounded-full bg-white dark:bg-gray-700 shadow-sm border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-200 hover:text-primary-600 dark:hover:text-primary-400 hover:border-primary-200 dark:hover:border-primary-500 transition-all duration-200 text-xs sm:text-sm font-medium"
                             >
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
-                                View Original
+                                <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                                <span class="hidden sm:inline">View Original</span>
+                                <span class="sm:hidden">View</span>
                             </button>
                         </div>
 
@@ -89,7 +90,7 @@ const formatCurrency = (amount) => {
                             <div class="relative flex items-center justify-center w-16 h-16 rounded-full bg-green-50 dark:bg-green-900/20 text-green-500 mb-4 shadow-lg shadow-green-500/10 ring-1 ring-green-500/20 animate-fade-in-up">
                                 <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>
                             </div>
-                            <Typography variant="h2" class="mb-0 !text-3xl animate-fade-in-up" style="animation-delay: 100ms">
+                            <Typography variant="h2" class="mb-0 text-2xl sm:text-3xl animate-fade-in-up" style="animation-delay: 100ms">
                                 Extraction Results
                             </Typography>
                         </div>
@@ -222,9 +223,9 @@ const formatCurrency = (amount) => {
             <div class="relative max-w-5xl w-full max-h-[90vh] flex flex-col items-center animate-fade-in-up">
                 <button 
                     @click="showOriginal = false"
-                    class="absolute -top-12 right-0 md:-right-12 text-white/50 hover:text-white transition-colors p-2"
+                    class="absolute -top-10 right-0 md:-right-12 text-white/70 hover:text-white transition-colors p-2 bg-black/20 rounded-full md:bg-transparent"
                 >
-                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    <svg class="w-6 h-6 sm:w-8 sm:h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
                 <img 
                     :src="imagePreview" 

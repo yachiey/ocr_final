@@ -94,7 +94,7 @@ const resetUI = () => {
     <Head title="Receipt OCR" />
 
     <div class="bg-gradient-to-br from-slate-50 via-primary-50/30 to-brand-light-blue/10 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800 text-gray-900 dark:text-gray-100 min-h-screen flex justify-center font-sans antialiased selection:bg-primary-500 selection:text-white transition-colors duration-300">
-        <div class="w-full max-w-4xl px-6 py-8 relative">
+        <div class="w-full max-w-4xl px-4 sm:px-6 py-8 relative">
 
             <!-- Dark mode toggle -->
             <div class="flex justify-end mb-4 md:mb-0 md:absolute md:top-6 md:right-6 z-20">

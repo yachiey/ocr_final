@@ -52,6 +52,8 @@ CRITICAL RULES:
 - Extract quantity from item lines if present.
 - Separate subtotal, tax, VAT, and total correctly.
 - Keep numeric values as numbers (no currency symbols).
+- DOUBLE CHECK the total amount. It should equal the sum of items (plus tax/service charge if applicable).
+- If the image is blurry, do your best to estimate but prefer null over a wild guess.
 
 JSON SCHEMA:
 {
@@ -142,6 +144,49 @@ JSON SCHEMA:
                 ];
             }
 
+            // --- POST-PROCESSING: Total Validation ---
+            $calculatedTotal = 0;
+            $itemsFound = false;
+            
+            if (isset($decoded['items']) && is_array($decoded['items'])) {
+                foreach ($decoded['items'] as $item) {
+                    $price = $item['total_price'] ?? $item['unit_price'] ?? 0;
+                     // Ensure numeric
+                    $price = is_numeric($price) ? floatval($price) : 0;
+                    $calculatedTotal += $price;
+                    $itemsFound = true;
+                }
+            }
+
+            // Get the extracted total (sanitize it)
+            $extractedTotal = $decoded['totals']['total'] ?? null;
+            if ($extractedTotal !== null && !is_numeric($extractedTotal)) {
+                 $extractedTotal = null; // Invalidate non-numeric
+            } else {
+                $extractedTotal = floatval($extractedTotal);
+            }
+
+            // Logic: If collected items sum up to something positive, and extracted total is missing 
+            // OR if extracted total is wildly different (optional, but let's stick to missing for now or 0), 
+            // we use the calculated total.
+            
+            // Case 1: No total extracted, but items have prices.
+            if (($extractedTotal === null || $extractedTotal == 0) && $itemsFound && $calculatedTotal > 0) {
+                 if (!isset($decoded['totals'])) $decoded['totals'] = [];
+                 $decoded['totals']['total'] = $calculatedTotal;
+                 $decoded['totals']['is_calculated'] = true; // Flag for frontend if needed
+            }
+
+            // Case 2: (Optional) If extracted total is less than calculated total (common in partial scans), 
+            // maybe warn? For now, we'll trust the explicit total if present, 
+            // unless it's way off. But let's trust the total for now.
+
+            // Ensure currency is set if missing
+            if (empty($decoded['totals']['currency'])) {
+                 if (!isset($decoded['totals'])) $decoded['totals'] = [];
+                 $decoded['totals']['currency'] = 'PHP'; // Default fallback, or detect from text
+            }
+
             // Reconstruct full_text from lines if available (and we haven't already set it from raw)
             if (isset($decoded['lines']) && is_array($decoded['lines']) && !empty($decoded['lines'])) {
                 $decoded['full_text'] = implode("\n", $decoded['lines']);
@@ -154,10 +199,7 @@ JSON SCHEMA:
                 'parsed' => $decoded
             ]);
 
-            return response()->json([
-                'raw_text' => $content,
-                'parsed' => $decoded
-            ]);
+
 
         } catch (\Exception $e) {
             Log::error('OCR Exception: ' . $e->getMessage());
