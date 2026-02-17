@@ -12,8 +12,8 @@ defineProps({
 </script>
 
 <template>
-    <li class="flex justify-between items-center text-sm border-b border-gray-200 pb-2 last:border-0 last:pb-0">
-        <span class="text-gray-700 font-medium truncate w-2/3">{{ name }}</span>
-        <span class="text-gray-900 font-semibold">{{ price }}</span>
+    <li class="flex justify-between items-center text-sm border-b border-gray-200 dark:border-gray-600 pb-2 last:border-0 last:pb-0">
+        <span class="text-gray-700 dark:text-gray-300 font-medium truncate w-2/3">{{ name }}</span>
+        <span class="text-gray-900 dark:text-white font-semibold">{{ price }}</span>
     </li>
 </template>

@@ -28,7 +28,7 @@ const handleCapture = (file) => {
 
 <template>
     <Card class="transition-all duration-300">
-        <div class="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"></div>
+        <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-brand-light-blue to-brand-dark-blue opacity-80"></div>
         
         <div class="p-8 sm:p-12">
             <template v-if="showCamera">

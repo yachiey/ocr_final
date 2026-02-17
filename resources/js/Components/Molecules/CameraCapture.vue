@@ -108,35 +108,47 @@ onUnmounted(() => {
             <canvas ref="canvasRef" class="hidden"></canvas>
 
             <!-- Controls Overlay -->
-            <div class="absolute bottom-0 left-0 w-full p-6 bg-gradient-to-t from-black/80 to-transparent flex flex-col gap-4 items-center">
-                <div class="flex items-center gap-4">
-                    <button 
-                        @click="$emit('cancel')"
-                        type="button"
-                        class="p-3 bg-white/20 backdrop-blur-sm rounded-full text-white hover:bg-white/30 transition-all"
-                        title="Cancel"
-                    >
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                    </button>
+            <div class="absolute bottom-0 left-0 w-full px-6 pb-8 pt-20 bg-gradient-to-t from-black/90 via-black/50 to-transparent flex flex-col gap-5 items-center">
+                <div class="flex items-end gap-8">
+                    <!-- Cancel Button -->
+                    <div class="flex flex-col items-center gap-1.5">
+                        <button 
+                            @click="$emit('cancel')"
+                            type="button"
+                            class="p-4 bg-white/25 backdrop-blur-md rounded-full text-white hover:bg-red-500/70 transition-all duration-200 active:scale-90"
+                            title="Cancel"
+                        >
+                            <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        </button>
+                        <span class="text-white/70 text-xs font-medium">Cancel</span>
+                    </div>
 
-                    <button 
-                        @click="captureImage"
-                        type="button"
-                        class="p-1 border-4 border-white rounded-full transition-transform active:scale-95"
-                    >
-                        <div class="w-16 h-16 bg-white rounded-full"></div>
-                    </button>
+                    <!-- Capture Button -->
+                    <div class="flex flex-col items-center gap-1.5">
+                        <button 
+                            @click="captureImage"
+                            type="button"
+                            class="p-1.5 border-4 border-white rounded-full transition-all duration-150 active:scale-90 hover:border-primary-300"
+                        >
+                            <div class="w-16 h-16 bg-white rounded-full hover:bg-primary-100 transition-colors"></div>
+                        </button>
+                        <span class="text-white/70 text-xs font-medium">Capture</span>
+                    </div>
 
-                    <button 
-                        @click="switchCamera"
-                        type="button"
-                        class="p-3 bg-white/20 backdrop-blur-sm rounded-full text-white hover:bg-white/30 transition-all"
-                        title="Switch Camera"
-                    >
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
-                    </button>
+                    <!-- Switch Camera Button -->
+                    <div class="flex flex-col items-center gap-1.5">
+                        <button 
+                            @click="switchCamera"
+                            type="button"
+                            class="p-4 bg-white/25 backdrop-blur-md rounded-full text-white hover:bg-white/40 transition-all duration-200 active:scale-90"
+                            title="Switch Camera"
+                        >
+                            <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                        </button>
+                        <span class="text-white/70 text-xs font-medium">Flip</span>
+                    </div>
                 </div>
-                <p class="text-white/80 text-sm">Align receipt securely</p>
+                <p class="text-white/60 text-sm">Align receipt within frame</p>
             </div>
         </div>
     </div>
