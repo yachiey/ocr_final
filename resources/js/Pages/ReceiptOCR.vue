@@ -5,6 +5,7 @@ import axios from 'axios';
 import PageHeader from '@/Components/Organisms/PageHeader.vue';
 import OcrUploadSection from '@/Components/Organisms/OcrUploadSection.vue';
 import OcrResultsSection from '@/Components/Organisms/OcrResultsSection.vue';
+import { preprocessImage } from '@/Utils/imageProcess';
 
 const imagePreview = ref(null);
 const processing = ref(false);
@@ -38,22 +39,33 @@ const dismissError = () => {
     clearTimeout(errorTimer);
 };
 
-const handleFileSelect = (file) => {
+const handleFileSelect = async (file) => {
     if (!file.type.startsWith('image/')) {
         showError('Please upload an image file. Supported formats: JPG, PNG, HEIC.');
         return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        imagePreview.value = e.target.result;
-    };
-    reader.readAsDataURL(file);
-    
-    // Reset state
-    results.value = null;
-    error.value = null;
-    form.image = file;
+    try {
+        processing.value = true;
+        // Preprocess the image (resize/optimize)
+        const processedFile = await preprocessImage(file);
+        
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            imagePreview.value = e.target.result;
+        };
+        reader.readAsDataURL(processedFile);
+        
+        // Reset state
+        results.value = null;
+        error.value = null;
+        form.image = processedFile;
+    } catch (err) {
+        console.error('Image processing error:', err);
+        showError('Failed to process image. Please try another file.');
+    } finally {
+        processing.value = false;
+    }
 };
 
 const processFile = async () => {

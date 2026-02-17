@@ -95,16 +95,16 @@ const formatCurrency = (amount) => {
                             </Typography>
                         </div>
                         
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
                             <!-- Key Details -->
                             <div class="space-y-6">
                                 <div class="bg-gray-50 dark:bg-gray-700/50 p-6 rounded-2xl border border-gray-100 dark:border-gray-600">
                                     <Typography variant="caption" class="mb-1">Merchant</Typography>
-                                    <p class="text-lg font-bold text-gray-900 dark:text-white">{{ results.parsed?.merchant?.name || 'N/A' }}</p>
-                                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ results.parsed?.merchant?.address || '' }}</p>
-                                    <p v-if="results.parsed?.merchant?.tax_id" class="text-xs text-gray-400 mt-2 font-mono">TIN: {{ results.parsed?.merchant?.tax_id }}</p>
+                                    <p class="text-lg font-bold text-gray-900 dark:text-white break-words">{{ results.parsed?.merchant?.name || 'N/A' }}</p>
+                                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1 break-words">{{ results.parsed?.merchant?.address || '' }}</p>
+                                    <p v-if="results.parsed?.merchant?.tax_id" class="text-xs text-gray-400 mt-2 font-mono break-all">TIN: {{ results.parsed?.merchant?.tax_id }}</p>
                                 </div>
-                                <div class="grid grid-cols-2 gap-4">
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div class="bg-gray-50 dark:bg-gray-700/50 p-6 rounded-2xl border border-gray-100 dark:border-gray-600">
                                         <Typography variant="caption" class="mb-1">Date</Typography>
                                         <p class="text-lg font-semibold text-gray-900 dark:text-white">{{ results.parsed?.transaction?.date || 'N/A' }}</p>
@@ -116,14 +116,14 @@ const formatCurrency = (amount) => {
                                     </div>
                                 </div>
                                 <!-- Extra Details -->
-                                <div class="grid grid-cols-2 gap-4 text-sm">
-                                     <div v-if="results.parsed?.transaction?.invoice_number" class="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-xl border border-gray-100 dark:border-gray-600">
+                                <div class="flex flex-col sm:flex-row gap-4 text-sm">
+                                     <div v-if="results.parsed?.transaction?.invoice_number" class="flex-1 min-w-0 bg-gray-50 dark:bg-gray-700/50 p-4 rounded-xl border border-gray-100 dark:border-gray-600">
                                         <span class="block text-xs text-gray-400 uppercase tracking-wider font-semibold">Invoice #</span>
-                                        <span class="font-mono text-gray-700 dark:text-gray-300">{{ results.parsed?.transaction?.invoice_number }}</span>
+                                        <span class="font-mono text-gray-700 dark:text-gray-300 break-all">{{ results.parsed?.transaction?.invoice_number }}</span>
                                     </div>
-                                     <div v-if="results.parsed?.payment?.authorization_code" class="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-xl border border-gray-100 dark:border-gray-600">
+                                     <div v-if="results.parsed?.payment?.authorization_code" class="flex-1 min-w-0 bg-gray-50 dark:bg-gray-700/50 p-4 rounded-xl border border-gray-100 dark:border-gray-600">
                                         <span class="block text-xs text-gray-400 uppercase tracking-wider font-semibold">Auth Code</span>
-                                        <span class="font-mono text-gray-700 dark:text-gray-300">{{ results.parsed?.payment?.authorization_code }}</span>
+                                        <span class="font-mono text-gray-700 dark:text-gray-300 break-all">{{ results.parsed?.payment?.authorization_code }}</span>
                                     </div>
                                 </div>
                             </div>

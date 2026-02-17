@@ -50,9 +50,17 @@ CRITICAL RULES:
 - Detect currency from symbols 
 - Convert dates to ISO format (YYYY-MM-DD) when possible.
 - Extract quantity from item lines if present.
-- Separate subtotal, tax, VAT, and total correctly.
+- Separate subtotal, tax (Sales Tax/Tax), VAT, and total correctly.
+- If "Tax" or "Sales Tax" is explicitly listed, extract it to "tax".
+- "vat_amount" is for VAT/Value Added Tax specifically. Use "tax" for generic/sales tax.
+- **IMPORTANT**: The **TOTAL** amount (often labeled "Amount Due", "TOTAL", or "Grand Total") is the final amount paid.
+- **TAX HANDLING**: In some regions (e.g., Philippines/BIR), the "Total" ALREADY includes VAT. 
+- If "Total" = "VATable Sales" + "VAT", then the "Total" on the receipt is the final amount. Do NOT add VAT again.
+- Extract the largest labeled amount (Total/Amount Due) to the "total" field.
+- "subtotal" should be the amount BEFORE taxes/vat if clearly labeled, or the sum of items.
+- Detect currency from symbols (e.g., "$", "P", "PHP").
 - Keep numeric values as numbers (no currency symbols).
-- DOUBLE CHECK the total amount. It should equal the sum of items (plus tax/service charge if applicable).
+- DOUBLE CHECK the total amount. It should equal the labeled total on the image.
 - If the image is blurry, do your best to estimate but prefer null over a wild guess.
 
 JSON SCHEMA:
@@ -81,7 +89,7 @@ JSON SCHEMA:
   ],
   "totals": {
     "subtotal": number | null,
-    "tax": number | null,
+    "tax": number | null, 
     "vat_amount": number | null,
     "vatable_sales": number | null,
     "total": number | null,
@@ -144,47 +152,94 @@ JSON SCHEMA:
                 ];
             }
 
-            // --- POST-PROCESSING: Total Validation ---
-            $calculatedTotal = 0;
-            $itemsFound = false;
-            
+            // --- POST-PROCESSING: Total Validation & Computation ---
+            $calculatedItemSum = 0;
             if (isset($decoded['items']) && is_array($decoded['items'])) {
                 foreach ($decoded['items'] as $item) {
                     $price = $item['total_price'] ?? $item['unit_price'] ?? 0;
-                     // Ensure numeric
-                    $price = is_numeric($price) ? floatval($price) : 0;
-                    $calculatedTotal += $price;
-                    $itemsFound = true;
+                    $calculatedItemSum += is_numeric($price) ? (float) $price : 0;
                 }
             }
 
-            // Get the extracted total (sanitize it)
-            $extractedTotal = $decoded['totals']['total'] ?? null;
-            if ($extractedTotal !== null && !is_numeric($extractedTotal)) {
-                 $extractedTotal = null; // Invalidate non-numeric
-            } else {
-                $extractedTotal = floatval($extractedTotal);
+            if (!isset($decoded['totals'])) {
+                $decoded['totals'] = [];
             }
 
-            // Logic: If collected items sum up to something positive, and extracted total is missing 
-            // OR if extracted total is wildly different (optional, but let's stick to missing for now or 0), 
-            // we use the calculated total.
-            
-            // Case 1: No total extracted, but items have prices.
-            if (($extractedTotal === null || $extractedTotal == 0) && $itemsFound && $calculatedTotal > 0) {
-                 if (!isset($decoded['totals'])) $decoded['totals'] = [];
-                 $decoded['totals']['total'] = $calculatedTotal;
-                 $decoded['totals']['is_calculated'] = true; // Flag for frontend if needed
+            // Helper function to safely get float or null
+            $getFloat = function ($key) use ($decoded) {
+                $val = $decoded['totals'][$key] ?? null;
+                return ($val !== null && is_numeric($val)) ? (float) $val : null;
+            };
+
+            $subtotal = $getFloat('subtotal');
+            $tax = $getFloat('tax');
+            $vatAmount = $getFloat('vat_amount');
+            $vatableSales = $getFloat('vatable_sales');
+            $total = $getFloat('total');
+
+            // Consolidated Tax (prefer tax, then vat_amount)
+            $effectiveTax = $tax ?? $vatAmount ?? 0;
+
+            // --- Business Logic for VAT-Inclusive Receipts ---
+            // If the extracted total looks like it already includes tax (it's >= subtotal + effectiveTax)
+            // Or if subtotal and total are the same and tax is non-zero (common if AI puts total in subtotal)
+            if ($total !== null && $subtotal !== null) {
+                if (abs($total - ($subtotal + $effectiveTax)) < 0.05) {
+                    // Normal case: Total = Subtotal + Tax
+                } elseif (abs($total - $subtotal) < 0.05 && $effectiveTax > 0) {
+                    // The AI likely put the Final Total in both fields or misidentified.
+                    // If VATable Sales is present, that's our true subtotal.
+                    if ($vatableSales !== null && $vatableSales > 0 && abs($total - ($vatableSales + $effectiveTax)) < 0.05) {
+                        $subtotal = $vatableSales;
+                    }
+                } elseif ($total < $subtotal && abs($subtotal - ($total + $effectiveTax)) < 0.05) {
+                    // Logic Flip: AI put the Total in Subtotal and some other value in Total.
+                    // This happens if the AI thinks Subtotal is the labeled "Total" from the receipt.
+                    $temp = $total;
+                    $total = $subtotal;
+                    $subtotal = $temp;
+                }
             }
 
-            // Case 2: (Optional) If extracted total is less than calculated total (common in partial scans), 
-            // maybe warn? For now, we'll trust the explicit total if present, 
-            // unless it's way off. But let's trust the total for now.
+            // 1. If Total is missing, try to calculate it
+            if ($total === null) {
+                if ($subtotal !== null) {
+                    $total = $subtotal + $effectiveTax;
+                } elseif ($calculatedItemSum > 0) {
+                    $total = $calculatedItemSum + $effectiveTax;
+                }
+            }
+
+            // 2. If Subtotal is missing, try to calculate it
+            if ($subtotal === null) {
+                if ($total !== null) {
+                    $subtotal = $total - $effectiveTax;
+                } else {
+                    $subtotal = $calculatedItemSum;
+                }
+            }
+
+            // 3. Final sanity check: If Subtotal + Tax = Total is FALSE and we have VATable Sales
+            // In PH receipts: VATable Sales + VAT = Total.
+            if ($vatableSales !== null && $vatAmount !== null && $total !== null) {
+                if (abs($total - ($vatableSales + $vatAmount)) < 0.05) {
+                    // Subtotal in our schema should ideally be the pre-tax amount.
+                    $subtotal = $vatableSales;
+                }
+            }
+
+            // 4. Update the decoded values
+            $decoded['totals']['subtotal'] = $subtotal;
+            $decoded['totals']['total'] = $total;
+            // Ensure derived tax/vat is preserved if we calculated it into effectiveTax but didn't write it back yet
+            if ($tax === null && $vatAmount !== null) {
+                // If we have VAT amount but no Tax field, keeping Tax as null is fine, effectiveTax was used. 
+                // But if we calculated effectiveTax from Total-Subtotal (step 3), we already set it.
+            }
 
             // Ensure currency is set if missing
             if (empty($decoded['totals']['currency'])) {
-                 if (!isset($decoded['totals'])) $decoded['totals'] = [];
-                 $decoded['totals']['currency'] = 'PHP'; // Default fallback, or detect from text
+                $decoded['totals']['currency'] = 'PHP'; // Default fallback
             }
 
             // Reconstruct full_text from lines if available (and we haven't already set it from raw)
