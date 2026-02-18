@@ -40,71 +40,49 @@ class OcrController extends Controller
                                     [
                                         'type' => 'text',
                                         'text' => 'You are a receipt data extraction system.
-Your task: Extract structured data from the OCR text of a receipt.
 
-CRITICAL RULES:
-- Return ONLY valid JSON.
-- Follow the exact schema.
-- If a field does not exist, return null.
-- Do NOT guess missing values.
-- Detect currency from symbols 
-- Convert dates to ISO format (YYYY-MM-DD) when possible.
-- Extract quantity from item lines if present.
-- Separate subtotal, tax (Sales Tax/Tax), VAT, and total correctly.
-- If "Tax" or "Sales Tax" is explicitly listed, extract it to "tax".
-- "vat_amount" is for VAT/Value Added Tax specifically. Use "tax" for generic/sales tax.
-- **IMPORTANT**: The **TOTAL** amount (often labeled "Amount Due", "TOTAL", or "Grand Total") is the final amount paid.
-- **TAX HANDLING**: In some regions (e.g., Philippines/BIR), the "Total" ALREADY includes VAT. 
-- If "Total" = "VATable Sales" + "VAT", then the "Total" on the receipt is the final amount. Do NOT add VAT again.
-- Extract the largest labeled amount (Total/Amount Due) to the "total" field.
-- "subtotal" should be the amount BEFORE taxes/vat if clearly labeled, or the sum of items.
-- Detect currency from symbols (e.g., "$", "P", "PHP").
-- Keep numeric values as numbers (no currency symbols).
-- DOUBLE CHECK the total amount. It should equal the labeled total on the image.
-- If the image is blurry, do your best to estimate but prefer null over a wild guess.
-
-JSON SCHEMA:
-{
-  "merchant": {
-    "name": string | null,
-    "branch": string | null,
-    "address": string | null,
-    "phone": string | null,
-    "tax_id": string | null
-  },
-  "transaction": {
-    "date": string | null,
-    "time": string | null,
-    "invoice_number": string | null,
-    "order_number": string | null,
-    "terminal": string | null
-  },
-  "items": [
-    {
-      "name": string,
-      "quantity": number | null,
-      "unit_price": number | null,
-      "total_price": number | null
-    }
-  ],
-  "totals": {
-    "subtotal": number | null,
-    "tax": number | null, 
-    "vat_amount": number | null,
-    "vatable_sales": number | null,
-    "total": number | null,
-    "currency": string | null
-  },
-  "payment": {
-    "method": string | null,
-    "card_last4": string | null,
-    "authorization_code": string | null,
-    "reference_number": string | null,
-    "status": string | null
-  },
-  "lines": string[] (Array of strings, representing each physical line of text on the receipt, preserving layout. Crucial: Do not flatmap this, keep it line-by-line),
-  "full_text": string (The complete raw text content. If possible, generate this from the lines)
-}'
+                                        JSON SCHEMA:
+                                        {
+                                        "merchant": {
+                                            "name": string | null,
+                                            "branch": string | null,
+                                            "address": string | null,
+                                            "phone": string | null,
+                                            "tax_id": string | null
+                                        },
+                                        "transaction": {
+                                            "date": string | null,
+                                            "time": string | null,
+                                            "invoice_number": string | null,
+                                            "order_number": string | null,
+                                            "terminal": string | null
+                                        },
+                                        "items": [
+                                            {
+                                            "name": string,
+                                            "quantity": number | null,
+                                            "unit_price": number | null,
+                                            "total_price": number | null
+                                            }
+                                        ],
+                                        "totals": {
+                                            "subtotal": number | null,
+                                            "tax": number | null, 
+                                            "vat_amount": number | null,
+                                            "vatable_sales": number | null,
+                                            "total": number | null,
+                                            "currency": string | null
+                                        },
+                                        "payment": {
+                                            "method": string | null,
+                                            "card_last4": string | null,
+                                            "authorization_code": string | null,
+                                            "reference_number": string | null,
+                                            "status": string | null
+                                        },
+                                        "lines": string[] (Array of strings, representing each physical line of text on the receipt, preserving layout. Crucial: Do not flatmap this, keep it line-by-line),
+                                        "full_text": string (The complete raw text content. If possible, generate this from the lines)
+                                        }'
                                     ],
                                     [
                                         'type' => 'image_url',

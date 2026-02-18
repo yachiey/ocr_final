@@ -3,7 +3,7 @@
  * Resizes the image to a maximum dimension (default 1600px) and optimizes quality.
  * This ensures consistency between gallery uploads and camera captures.
  */
-export const preprocessImage = (file, maxDimension = 1600) => {
+export const preprocessImage = (file, maxDimension = 3000) => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.readAsDataURL(file);
@@ -46,7 +46,7 @@ export const preprocessImage = (file, maxDimension = 1600) => {
                     } else {
                         reject(new Error('Canvas to Blob conversion failed'));
                     }
-                }, 'image/jpeg', 0.85); // 85% quality is a sweet spot for OCR
+                }, 'image/jpeg', 0.92); // 92% quality for better OCR detail
             };
             img.onerror = (err) => reject(err);
         };

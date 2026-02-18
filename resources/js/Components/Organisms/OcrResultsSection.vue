@@ -23,11 +23,34 @@ const showOriginal = ref(false);
 
 const copyToClipboard = async (text, key) => {
     try {
-        await navigator.clipboard.writeText(text);
+        if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(text);
+        } else {
+            // Fallback for non-secure contexts
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.position = "fixed";
+            textArea.style.left = "-9999px";
+            textArea.style.top = "0";
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            
+            try {
+                document.execCommand('copy');
+            } catch (err) {
+                console.error('Fallback copy failed', err);
+                throw new Error('Copy failed');
+            } finally {
+                document.body.removeChild(textArea);
+            }
+        }
+        
         copied.value[key] = true;
         setTimeout(() => { copied.value[key] = false; }, 2000);
     } catch (err) {
         console.error('Copy failed', err);
+        // Optional: Show a toast or alert to the user
     }
 };
 
