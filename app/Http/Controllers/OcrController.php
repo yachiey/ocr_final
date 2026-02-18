@@ -62,6 +62,7 @@ CRITICAL RULES:
 - Keep numeric values as numbers (no currency symbols).
 - DOUBLE CHECK the total amount. It should equal the labeled total on the image.
 - If the image is blurry, do your best to estimate but prefer null over a wild guess.
+- **IMPORTANT**: Extract ALL items visible on the receipt. Do not skip any items even if partially obscured or hard to read. It is better to include an item with an estimated name/price than to omit it entirely.
 
 JSON SCHEMA:
 {
@@ -116,7 +117,7 @@ JSON SCHEMA:
                             ]
                         ],
                         'temperature' => 0.1, // Low temperature for factual extraction
-                        'max_tokens' => 2048,
+                        'max_tokens' => 4096, // Higher limit to avoid truncation for receipts with many items
                     ]);
 
             if ($response->failed()) {
