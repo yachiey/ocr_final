@@ -56,7 +56,7 @@ const copyToClipboard = async (text, key) => {
 
 const formatCurrency = (amount) => {
     if (!amount && amount !== 0) return 'N/A';
-    const currency = props.results.parsed?.totals?.currency || props.results.parsed?.currency || 'USD';
+    const currency = props.results.parsed?.totals?.currency || props.results.parsed?.currency || 'PHP';
     const symbols = {
         'USD': '$',
         'PHP': '₱',
