@@ -40,6 +40,28 @@ class OcrController extends Controller
                                     [
                                         'type' => 'text',
                                         'text' => 'You are a receipt data extraction system.
+Your task: Extract structured data from the OCR text of a receipt.
+
+CRITICAL RULES:
+- Return ONLY valid JSON.
+- Follow the exact schema.
+- If a field does not exist, return null.
+- Do NOT guess missing values.
+- Detect currency from symbols 
+- Convert dates to ISO format (YYYY-MM-DD) when possible.
+- Extract quantity from item lines if present.
+- Separate subtotal, tax (Sales Tax/Tax), VAT, and total correctly.
+- If "Tax" or "Sales Tax" is explicitly listed, extract it to "tax".
+- "vat_amount" is for VAT/Value Added Tax specifically. Use "tax" for generic/sales tax.
+- **IMPORTANT**: The **TOTAL** amount (often labeled "Amount Due", "TOTAL", or "Grand Total") is the final amount paid.
+- **TAX HANDLING**: In some regions (e.g., Philippines/BIR), the "Total" ALREADY includes VAT. 
+- If "Total" = "VATable Sales" + "VAT", then the "Total" on the receipt is the final amount. Do NOT add VAT again.
+- Extract the largest labeled amount (Total/Amount Due) to the "total" field.
+- "subtotal" should be the amount BEFORE taxes/vat if clearly labeled, or the sum of items.
+- Detect currency from symbols (e.g., "$", "P", "PHP").
+- Keep numeric values as numbers (no currency symbols).
+- DOUBLE CHECK the total amount. It should equal the labeled total on the image.
+- If the image is blurry, do your best to estimate but prefer null over a wild guess.
 
                                         JSON SCHEMA:
                                         {
@@ -94,7 +116,7 @@ class OcrController extends Controller
                             ]
                         ],
                         'temperature' => 0.1, // Low temperature for factual extraction
-                        'max_tokens' => 2048,
+                        'max_tokens' => 4096, // Higher limit to avoid truncation for receipts with many items
                     ]);
 
             if ($response->failed()) {
