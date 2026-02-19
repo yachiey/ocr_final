@@ -41,6 +41,19 @@ class OcrController extends Controller
                                         'type' => 'text',
                                         'text' => 'You are a receipt data extraction system.
 
+                                        IMPORTANT: For the "currency" field, you MUST determine the correct ISO 4217 currency code based on the merchant address, location, or any country indicators visible on the receipt. Examples:
+                                        - Philippines addresses → "PHP"
+                                        - USA addresses → "USD"
+                                        - Japan addresses → "JPY"
+                                        - UK addresses → "GBP"
+                                        - EU/Eurozone addresses → "EUR"
+                                        - South Korea addresses → "KRW"
+                                        - Singapore addresses → "SGD"
+                                        - Thailand addresses → "THB"
+                                        - Australia addresses → "AUD"
+                                        - Canada addresses → "CAD"
+                                        Do NOT leave currency as null if you can determine the country from the address or any other context on the receipt.
+
                                         JSON SCHEMA:
                                         {
                                         "merchant": {
@@ -215,9 +228,11 @@ class OcrController extends Controller
                 // But if we calculated effectiveTax from Total-Subtotal (step 3), we already set it.
             }
 
-            // Ensure currency is set if missing
+            // Infer currency from merchant address if the LLM didn't return one
             if (empty($decoded['totals']['currency'])) {
-                $decoded['totals']['currency'] = 'PHP'; // Default fallback
+                $decoded['totals']['currency'] = $this->inferCurrencyFromAddress(
+                    $decoded['merchant']['address'] ?? ''
+                );
             }
 
             // Reconstruct full_text from lines if available (and we haven't already set it from raw)
@@ -238,5 +253,73 @@ class OcrController extends Controller
             Log::error('OCR Exception: ' . $e->getMessage());
             return response()->json(['error' => 'An unexpected error occurred.'], 500);
         }
+    }
+    /**
+     * Infer ISO 4217 currency code from a merchant address string.
+     * Falls back to 'PHP' (Philippine Peso) as the app's primary market.
+     */
+    private function inferCurrencyFromAddress(string $address): string
+    {
+        $address = strtolower($address);
+
+        // Map of keywords (country names, cities, regions) to currency codes
+        $mappings = [
+            // Philippines
+            'PHP' => ['philippines', 'manila', 'cebu', 'davao', 'quezon', 'makati', 'taguig', 'pasig', 'pasay', 'caloocan', 'muntinlupa', 'paranaque', 'marikina', 'cavite', 'laguna', 'bulacan', 'pampanga', 'batangas', 'rizal'],
+            // United States
+            'USD' => ['united states', 'usa', 'u.s.a', 'u.s.', 'new york', 'los angeles', 'chicago', 'houston', 'phoenix', 'california', 'texas', 'florida', 'illinois'],
+            // Japan
+            'JPY' => ['japan', 'tokyo', 'osaka', 'kyoto', 'yokohama', 'nagoya', 'sapporo', 'fukuoka'],
+            // United Kingdom
+            'GBP' => ['united kingdom', 'england', 'london', 'manchester', 'birmingham', 'scotland', 'wales', 'uk'],
+            // Eurozone
+            'EUR' => ['germany', 'france', 'italy', 'spain', 'netherlands', 'belgium', 'austria', 'ireland', 'portugal', 'greece', 'finland', 'berlin', 'paris', 'rome', 'madrid', 'amsterdam', 'vienna'],
+            // South Korea
+            'KRW' => ['south korea', 'korea', 'seoul', 'busan', 'incheon'],
+            // Singapore
+            'SGD' => ['singapore'],
+            // Thailand
+            'THB' => ['thailand', 'bangkok', 'chiang mai', 'phuket', 'pattaya'],
+            // Australia
+            'AUD' => ['australia', 'sydney', 'melbourne', 'brisbane', 'perth'],
+            // Canada
+            'CAD' => ['canada', 'toronto', 'vancouver', 'montreal', 'ottawa', 'calgary'],
+            // China
+            'CNY' => ['china', 'beijing', 'shanghai', 'shenzhen', 'guangzhou'],
+            // India
+            'INR' => ['india', 'mumbai', 'delhi', 'bangalore', 'hyderabad', 'chennai'],
+            // Indonesia
+            'IDR' => ['indonesia', 'jakarta', 'bali', 'surabaya', 'bandung'],
+            // Malaysia
+            'MYR' => ['malaysia', 'kuala lumpur', 'penang', 'johor'],
+            // Vietnam
+            'VND' => ['vietnam', 'ho chi minh', 'hanoi', 'da nang'],
+            // Taiwan
+            'TWD' => ['taiwan', 'taipei', 'kaohsiung'],
+            // Hong Kong
+            'HKD' => ['hong kong'],
+            // New Zealand
+            'NZD' => ['new zealand', 'auckland', 'wellington'],
+            // Switzerland
+            'CHF' => ['switzerland', 'zurich', 'geneva', 'bern'],
+            // Brazil
+            'BRL' => ['brazil', 'são paulo', 'sao paulo', 'rio de janeiro'],
+            // Mexico
+            'MXN' => ['mexico', 'mexico city', 'guadalajara', 'monterrey'],
+            // South Africa
+            'ZAR' => ['south africa', 'johannesburg', 'cape town', 'durban'],
+            // Russia
+            'RUB' => ['russia', 'moscow', 'saint petersburg'],
+        ];
+
+        foreach ($mappings as $currency => $keywords) {
+            foreach ($keywords as $keyword) {
+                if (str_contains($address, $keyword)) {
+                    return $currency;
+                }
+            }
+        }
+
+        return 'PHP'; // Default for primary market
     }
 }
