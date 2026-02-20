@@ -51,18 +51,6 @@ services:
     networks:
       - ocr_network
 
-  # Adminer - Database Management UI
-  adminer:
-    image: adminer:latest
-    container_name: ocr_adminer
-    restart: unless-stopped
-    ports:
-      - "8081:8080"
-    networks:
-      - ocr_network
-    depends_on:
-      - db
-
 networks:
   ocr_network:
     driver: bridge
