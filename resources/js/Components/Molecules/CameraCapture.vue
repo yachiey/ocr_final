@@ -96,14 +96,15 @@ const facingMode = ref('environment'); // 'user' or 'environment'
             toggleFlash(); 
         }
 
-        // Convert to file
+        // Convert to PNG to avoid double JPEG compression
+        // (preprocessImage will convert to JPEG at optimal quality later)
         canvas.toBlob((blob) => {
             if (blob) {
-                const file = new File([blob], `capture-${Date.now()}.jpg`, { type: 'image/jpeg' });
+                const file = new File([blob], `capture-${Date.now()}.png`, { type: 'image/png' });
                 emit('capture', file);
                 stopCamera();
             }
-        }, 'image/jpeg', 0.95);
+        }, 'image/png');
     };
 
     onMounted(() => {
