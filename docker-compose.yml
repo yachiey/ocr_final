@@ -15,11 +15,17 @@ services:
     depends_on:
       - db
     environment:
+      - DB_CONNECTION=mongodb
       - DB_HOST=db
-      - DB_PORT=3306
+      - DB_PORT=27017
       - DB_DATABASE=ocr
       - DB_USERNAME=root
       - DB_PASSWORD=secret
+      - DB_AUTHENTICATION_DATABASE=admin
+      - SESSION_DRIVER=file
+      - CACHE_STORE=file
+      - QUEUE_CONNECTION=sync
+      - GROQ_OCR=${GROQ_OCR}
 
   # Nginx Service
   web:
@@ -36,28 +42,35 @@ services:
     depends_on:
       - app
 
-  # MySQL Service
+  # MongoDB Service
   db:
-    image: mysql:8.0
+    image: mongo:7
     container_name: ocr_db
     restart: unless-stopped
     ports:
-      - "3307:3306"
+      - "27017:27017"
     environment:
-      MYSQL_DATABASE: ocr
-      MYSQL_ROOT_PASSWORD: secret
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: secret
+      MONGO_INITDB_DATABASE: ocr
     volumes:
-      - dbdata:/var/lib/mysql
+      - mongodb_data:/data/db
     networks:
       - ocr_network
 
-  # Adminer - Database Management UI
-  adminer:
-    image: adminer:latest
-    container_name: ocr_adminer
+  # Mongo Express - Database Management UI
+  mongo-express:
+    image: mongo-express:latest
+    container_name: ocr_mongo_express
     restart: unless-stopped
     ports:
-      - "8081:8080"
+      - "8081:8081"
+    environment:
+      ME_CONFIG_MONGODB_SERVER: db
+      ME_CONFIG_MONGODB_ADMINUSERNAME: root
+      ME_CONFIG_MONGODB_ADMINPASSWORD: secret
+      ME_CONFIG_BASICAUTH_USERNAME: admin
+      ME_CONFIG_BASICAUTH_PASSWORD: admin
     networks:
       - ocr_network
     depends_on:
@@ -68,5 +81,5 @@ networks:
     driver: bridge
 
 volumes:
-  dbdata:
+  mongodb_data:
     driver: local
