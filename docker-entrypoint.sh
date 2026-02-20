@@ -1,18 +1,11 @@
 #!/bin/bash
 set -e
 
-DB_HOST="${DB_HOST:-db}"
-DB_PORT="${DB_PORT:-3306}"
-DB_DATABASE="${DB_DATABASE:-ocr}"
-DB_USERNAME="${DB_USERNAME:-root}"
-DB_PASSWORD="${DB_PASSWORD:-secret}"
-export DB_HOST DB_PORT DB_DATABASE DB_USERNAME DB_PASSWORD
-
 # Wait for MySQL to be ready
 echo "Waiting for MySQL to be ready..."
 max_tries=30
 count=0
-while ! php -r "try { new PDO('mysql:host=' . getenv('DB_HOST') . ';port=' . getenv('DB_PORT'), getenv('DB_USERNAME'), getenv('DB_PASSWORD')); echo 'ok'; } catch(Exception \$e) { exit(1); }" 2>/dev/null; do
+while ! php -r "try { new PDO('mysql:host=db;port=3306', 'root', 'secret'); echo 'ok'; } catch(Exception \$e) { exit(1); }" 2>/dev/null; do
     count=$((count + 1))
     if [ $count -ge $max_tries ]; then
         echo "MySQL not ready after $max_tries attempts, starting anyway..."
@@ -22,6 +15,16 @@ while ! php -r "try { new PDO('mysql:host=' . getenv('DB_HOST') . ';port=' . get
     sleep 2
 done
 echo "MySQL is ready!"
+
+# Update .env for Docker environment if DB_HOST is not already set to 'db'
+if grep -q "^DB_HOST=localhost" /var/www/.env 2>/dev/null; then
+    echo "Updating .env for Docker environment..."
+    sed -i 's/^DB_HOST=.*/DB_HOST=db/' /var/www/.env
+    sed -i 's/^DB_PORT=.*/DB_PORT=3306/' /var/www/.env
+    sed -i 's/^DB_DATABASE=.*/DB_DATABASE=ocr/' /var/www/.env
+    sed -i 's/^DB_USERNAME=.*/DB_USERNAME=root/' /var/www/.env
+    sed -i 's/^DB_PASSWORD=.*/DB_PASSWORD=secret/' /var/www/.env
+fi
 
 # Cache config
 php artisan config:clear
