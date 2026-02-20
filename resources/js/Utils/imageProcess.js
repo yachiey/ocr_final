@@ -32,7 +32,7 @@ export const preprocessImage = (file, maxDimension = 2400) => {
 
                 canvas.width = width;
                 canvas.height = height;
-                const ctx = canvas.getContext('2d');
+                const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
                 // Draw image to canvas (this also flattens orientation)
                 ctx.drawImage(img, 0, 0, width, height);
