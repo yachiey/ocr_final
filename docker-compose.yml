@@ -58,24 +58,6 @@ services:
     networks:
       - ocr_network
 
-  # Mongo Express - Database Management UI
-  mongo-express:
-    image: mongo-express:latest
-    container_name: ocr_mongo_express
-    restart: unless-stopped
-    ports:
-      - "8081:8081"
-    environment:
-      ME_CONFIG_MONGODB_SERVER: db
-      ME_CONFIG_MONGODB_ADMINUSERNAME: root
-      ME_CONFIG_MONGODB_ADMINPASSWORD: secret
-      ME_CONFIG_BASICAUTH_USERNAME: admin
-      ME_CONFIG_BASICAUTH_PASSWORD: admin
-    networks:
-      - ocr_network
-    depends_on:
-      - db
-
 networks:
   ocr_network:
     driver: bridge
