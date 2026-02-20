@@ -139,21 +139,26 @@ CRITICAL RULES:
 
             $content = $response->json('choices.0.message.content');
 
-            // 1. Clean markdown code blocks if present
-            $cleanedContent = preg_replace('/^```json\s*|\s*```$/', '', trim($content));
+            // 1. Clean markdown code blocks if present (handles ```json, ```, ```JSON, etc.)
+            $cleanedContent = preg_replace('/^```(?:json)?\s*|\s*```$/i', '', trim($content));
 
             // 2. Attempt to parse cleaned content
             $decoded = json_decode($cleanedContent, true);
 
-            // 3. Fallback: If null, try to find the first '{' and last '}'
+            // 3. Fallback: Strip ALL backticks and find JSON object
             if (json_last_error() !== JSON_ERROR_NONE) {
-                if (preg_match('/\{.*\}/s', $content, $matches)) {
+                $stripped = str_replace('`', '', $content);
+                if (preg_match('/\{.*\}/s', $stripped, $matches)) {
                     $decoded = json_decode($matches[0], true);
                 }
             }
 
             // 4. Ultimate Fallback: If still invalid, treat raw content as full_text
             if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
+                Log::warning('OCR JSON parse failed', [
+                    'error' => json_last_error_msg(),
+                    'content_preview' => substr($content, 0, 200),
+                ]);
                 $decoded = [
                     'store_name' => null,
                     'date' => null,
@@ -193,17 +198,44 @@ CRITICAL RULES:
             // Consolidated Tax (prefer tax, then vat_amount)
             $effectiveTax = $tax ?? $vatAmount ?? 0;
 
+            // Log raw LLM values for debugging
+            Log::info('OCR Post-Processing — LLM raw values', [
+                'subtotal' => $subtotal,
+                'total' => $total,
+                'tax' => $tax,
+                'vat_amount' => $vatAmount,
+                'vatable_sales' => $vatableSales,
+                'effectiveTax' => $effectiveTax,
+                'calculatedItemSum' => $calculatedItemSum,
+            ]);
+
             // --- Business Logic for VAT-Inclusive Receipts ---
             // If the extracted total looks like it already includes tax (it's >= subtotal + effectiveTax)
             // Or if subtotal and total are the same and tax is non-zero (common if AI puts total in subtotal)
             if ($total !== null && $subtotal !== null) {
                 if (abs($total - ($subtotal + $effectiveTax)) < 0.05) {
-                    // Normal case: Total = Subtotal + Tax
+                    // Appears to be Normal case: Total = Subtotal + Tax.
+                    // BUT: check for BIR-style receipts where the LLM ALSO wrongly
+                    // computed total = subtotal + VAT. If item sum ≈ subtotal and
+                    // vatable_sales is present, subtotal IS the real gross total.
+                    if (
+                        $vatableSales !== null && $vatAmount !== null
+                        && $calculatedItemSum > 0 && abs($subtotal - $calculatedItemSum) < 1.00
+                    ) {
+                        // LLM double-counted VAT — subtotal is the real total
+                        $total = $subtotal;
+                        $subtotal = $total - $effectiveTax;
+                    }
+                    // else: genuinely normal Total = Subtotal + Tax — no adjustment
                 } elseif (abs($total - $subtotal) < 0.05 && $effectiveTax > 0) {
                     // The AI likely put the Final Total in both fields or misidentified.
                     // If VATable Sales is present, that's our true subtotal.
                     if ($vatableSales !== null && $vatableSales > 0 && abs($total - ($vatableSales + $effectiveTax)) < 0.05) {
                         $subtotal = $vatableSales;
+                    } elseif ($vatableSales !== null && $vatAmount !== null) {
+                        // BIR-style receipt where Total includes VAT + VAT Exempt sales.
+                        // Total is correct; adjust subtotal to pre-tax amount.
+                        $subtotal = $total - $effectiveTax;
                     }
                 } elseif ($total < $subtotal && abs($subtotal - ($total + $effectiveTax)) < 0.05) {
                     // Logic Flip: AI put the Total in Subtotal and some other value in Total.
@@ -217,9 +249,28 @@ CRITICAL RULES:
             // 1. If Total is missing, try to calculate it
             if ($total === null) {
                 if ($subtotal !== null) {
-                    $total = $subtotal + $effectiveTax;
+                    // Detect VAT-inclusive receipts (e.g., PH BIR-style) where the
+                    // LLM put the receipt's labeled "Total" (which already includes VAT)
+                    // into "subtotal". Indicator: vatable_sales + vat_amount exist AND
+                    // item sum ≈ subtotal (meaning items are priced VAT-inclusive).
+                    if (
+                        $vatableSales !== null && $vatAmount !== null
+                        && $calculatedItemSum > 0 && abs($subtotal - $calculatedItemSum) < 1.00
+                    ) {
+                        // subtotal IS actually the gross total — don't add VAT again
+                        $total = $subtotal;
+                        $subtotal = $total - $effectiveTax;
+                    } else {
+                        $total = $subtotal + $effectiveTax;
+                    }
                 } elseif ($calculatedItemSum > 0) {
-                    $total = $calculatedItemSum + $effectiveTax;
+                    // Same BIR check for when we only have item prices
+                    if ($vatableSales !== null && $vatAmount !== null) {
+                        $total = $calculatedItemSum;
+                        $subtotal = $total - $effectiveTax;
+                    } else {
+                        $total = $calculatedItemSum + $effectiveTax;
+                    }
                 }
             }
 

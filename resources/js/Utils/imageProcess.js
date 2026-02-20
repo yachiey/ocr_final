@@ -1,10 +1,11 @@
 /**
  * Preprocesses an image file for OCR.
- * Resizes the image to a maximum dimension (default 2400px), applies sharpening
- * and contrast enhancement, and optimizes quality for text extraction.
- * This ensures consistency between gallery uploads and camera captures.
+ * Resizes the image to a maximum dimension (default 2400px), and conditionally
+ * applies sharpening and contrast enhancement for large/desktop images.
+ * For smaller images (typically from mobile cameras), heavy processing is
+ * skipped to avoid degrading text quality that hurts LLM structured extraction.
  */
-export const preprocessImage = (file, maxDimension = 1600) => {
+export const preprocessImage = (file, maxDimension = 2400) => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.readAsDataURL(file);
@@ -36,11 +37,17 @@ export const preprocessImage = (file, maxDimension = 1600) => {
                 // Draw image to canvas (this also flattens orientation)
                 ctx.drawImage(img, 0, 0, width, height);
 
-                // Apply contrast enhancement for better text readability
-                applyContrastEnhancement(ctx, width, height);
+                // Only apply heavy processing for large images (likely desktop/scanned)
+                // For smaller images (likely mobile camera), skip to avoid degrading
+                // text quality which causes the LLM to return NA for structured fields
+                const originalMaxDim = Math.max(img.width, img.height);
+                if (originalMaxDim > 2000) {
+                    // Apply contrast enhancement for better text readability
+                    applyContrastEnhancement(ctx, width, height);
 
-                // Apply sharpening to counteract canvas resampling softness
-                applySharpen(ctx, width, height);
+                    // Apply sharpening to counteract canvas resampling softness
+                    applySharpen(ctx, width, height);
+                }
 
                 // Convert canvas back to blob
                 canvas.toBlob((blob) => {
@@ -53,7 +60,7 @@ export const preprocessImage = (file, maxDimension = 1600) => {
                     } else {
                         reject(new Error('Canvas to Blob conversion failed'));
                     }
-                }, 'image/jpeg', 0.85); // 85% quality is a sweet spot for OCR
+                }, 'image/jpeg', 0.92); // 92% quality preserves text detail for OCR
             };
             img.onerror = (err) => reject(err);
         };
@@ -68,7 +75,7 @@ export const preprocessImage = (file, maxDimension = 1600) => {
 function applyContrastEnhancement(ctx, width, height) {
     const imageData = ctx.getImageData(0, 0, width, height);
     const data = imageData.data;
-    const factor = 1.2; // Mild contrast boost (1.0 = no change)
+    const factor = 1.1; // Mild contrast boost (1.0 = no change, reduced from 1.2 to preserve text)
     const intercept = 128 * (1 - factor);
 
     for (let i = 0; i < data.length; i += 4) {
