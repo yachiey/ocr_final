@@ -1,8 +1,59 @@
+# ===========================================
+# Docker Ignore - OCR Final Project
+# ===========================================
+
+# Version control
 .git
-node_modules
-vendor
+.gitignore
+.gitattributes
+
+# Dependencies (installed inside container)
+/node_modules
+/vendor
+
+# Build output
+/public/build
+/public/hot
+
+# Environment files
 .env
-storage/logs/*
-storage/framework/cache/*
-storage/framework/sessions/*
-storage/framework/views/*
+.env.*
+!.env.example
+
+# IDE / Editor files
+.idea
+.vscode
+.gemini
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Testing
+/tests
+phpunit.xml
+.phpunit.result.cache
+.phpunit.cache
+
+# Docker files (not needed inside the image)
+docker-compose.yml
+Dockerfile
+Makefile
+make.bat
+.dockerignore
+
+# Laravel storage (mounted via volume)
+/storage/logs/*
+/storage/framework/cache/*
+/storage/framework/sessions/*
+/storage/framework/views/*
+/bootstrap/cache/*
+
+# Documentation & misc
+README.md
+LICENSE
+*.md
+/docs
+
+# Nginx config (mounted via volume in compose)
+/nginx
