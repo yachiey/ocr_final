@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\OcrResult;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -19,6 +20,7 @@ class OcrController extends Controller
             $base64Image = base64_encode(file_get_contents($image->getRealPath()));
             $mimeType = $image->getMimeType();
             $dataUrl = "data:{$mimeType};base64,{$base64Image}";
+            $storedImagePath = 'storage/' . $image->store('ocr_images', 'public');
 
             $apiKey = env('GROQ_OCR');
             $model = 'meta-llama/llama-4-scout-17b-16e-instruct'; // Updated to a valid vision model for Groq if the user provided one is invalid, but I will stick to user provided or a known working one. User provided 'meta-llama/llama-4-scout-17b-16e-instruct' which looks weird/custom. I will fallback to a standard vision model if that fails, but for now I will use what they gave or a safe default. 
@@ -315,18 +317,77 @@ CRITICAL RULES:
                 $decoded['full_text'] = '';
             }
 
+            $ocrResult = OcrResult::create($this->buildOcrResultPayload(
+                $request,
+                $decoded,
+                $content,
+                $storedImagePath
+            ));
+
             return response()->json([
                 'raw_text' => $content,
-                'parsed' => $decoded
+                'parsed' => $decoded,
+                'saved_result_id' => (string) $ocrResult->getKey(),
             ]);
 
 
 
-        } catch (\Exception $e) {
-            Log::error('OCR Exception: ' . $e->getMessage());
-            return response()->json(['error' => 'An unexpected error occurred.'], 500);
+        } catch (\Throwable $e) {
+            Log::error('OCR Exception', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            $errorMessage = config('app.debug') ? $e->getMessage() : 'An unexpected error occurred.';
+
+            return response()->json(['error' => $errorMessage], 500);
         }
     }
+    /**
+     * Map OCR output to the persisted MongoDB document structure.
+     */
+    private function buildOcrResultPayload(
+        Request $request,
+        array $decoded,
+        string $rawContent,
+        string $storedImagePath
+    ): array {
+        $totalAmount = data_get($decoded, 'totals.total', data_get($decoded, 'total_amount'));
+        $totalAmount = is_numeric($totalAmount) ? (float) $totalAmount : null;
+
+        $items = data_get($decoded, 'items', []);
+        if (!is_array($items)) {
+            $items = [];
+        }
+
+        $lines = data_get($decoded, 'lines', []);
+        if (!is_array($lines)) {
+            $lines = [];
+        }
+
+        $rawText = data_get($decoded, 'full_text');
+        if (!is_string($rawText) || $rawText === '') {
+            $rawText = $rawContent;
+        }
+
+        return [
+            'user_id' => $request->user()?->id,
+            'store_name' => data_get($decoded, 'merchant.name', data_get($decoded, 'store_name')),
+            'date' => data_get($decoded, 'transaction.date', data_get($decoded, 'date')),
+            'total_amount' => $totalAmount,
+            'items' => $items,
+            'raw_text' => $rawText,
+            'image_path' => $storedImagePath,
+            'merchant' => data_get($decoded, 'merchant', []),
+            'transaction' => data_get($decoded, 'transaction', []),
+            'totals' => data_get($decoded, 'totals', []),
+            'payment' => data_get($decoded, 'payment', []),
+            'lines' => $lines,
+        ];
+    }
+
     /**
      * Infer ISO 4217 currency code from a merchant address string.
      * Falls back to 'PHP' (Philippine Peso) as the app's primary market.
