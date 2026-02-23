@@ -33,11 +33,14 @@ export const preprocessImage = (file, maxDimension = 2400) => {
                 // draw image to canvas (also fixes mobile rotation issues)
                 ctx.drawImage(img, 0, 0, width, height);
 
-                // only sharpen/enhance big images (probably scanned or from desktop)
-                // small images from phone cameras actually get worse with this
                 const originalMaxDim = Math.max(img.width, img.height);
+
+                // all images get grayscale + mild contrast (helps OCR on receipts)
+                applyGrayscale(ctx, width, height);
+                applyContrastEnhancement(ctx, width, height);
+
+                // only sharpen big images (desktop scans) — hurts small phone photos
                 if (originalMaxDim > 2000) {
-                    applyContrastEnhancement(ctx, width, height);
                     applySharpen(ctx, width, height);
                 }
 
@@ -59,6 +62,22 @@ export const preprocessImage = (file, maxDimension = 2400) => {
         reader.onerror = (err) => reject(err);
     });
 };
+
+// convert to grayscale — strips color noise and makes text stand out more
+function applyGrayscale(ctx, width, height) {
+    const imageData = ctx.getImageData(0, 0, width, height);
+    const data = imageData.data;
+
+    for (let i = 0; i < data.length; i += 4) {
+        // standard luminance weighting (human eye is most sensitive to green)
+        const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+        data[i] = gray;       // R
+        data[i + 1] = gray;   // G
+        data[i + 2] = gray;   // B
+    }
+
+    ctx.putImageData(imageData, 0, 0);
+}
 
 // bump up contrast a little so text pops more
 function applyContrastEnhancement(ctx, width, height) {
