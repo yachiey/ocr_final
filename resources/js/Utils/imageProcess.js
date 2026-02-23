@@ -28,7 +28,7 @@ export const preprocessImage = (file, maxDimension = 2400) => {
 
                 canvas.width = width;
                 canvas.height = height;
-                const ctx = canvas.getContext('2d');
+                const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
                 // draw image to canvas (also fixes mobile rotation issues)
                 ctx.drawImage(img, 0, 0, width, height);
