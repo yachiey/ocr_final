@@ -1,3 +1,4 @@
+<!-- Main upload section - shows either camera, file upload, or image preview -->
 <script setup>
 import Card from '@/Components/Atoms/Card.vue';
 import FileUpload from '@/Components/Molecules/FileUpload.vue';
@@ -18,8 +19,10 @@ defineProps({
 
 const emit = defineEmits(['file-selected', 'remove', 'process']);
 
+// toggle camera view on/off
 const showCamera = ref(false);
 
+// when camera captures a photo, close camera and pass file up
 const handleCapture = (file) => {
     showCamera.value = false;
     emit('file-selected', file);

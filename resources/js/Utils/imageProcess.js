@@ -1,10 +1,6 @@
-/**
- * Preprocesses an image file for OCR.
- * Resizes the image to a maximum dimension (default 2400px), and conditionally
- * applies sharpening and contrast enhancement for large/desktop images.
- * For smaller images (typically from mobile cameras), heavy processing is
- * skipped to avoid degrading text quality that hurts LLM structured extraction.
- */
+// resize and clean up an image before sending it to the OCR API
+// only applies sharpening/contrast to big images (desktop scans)
+// mobile photos are left alone since heavy processing hurts text quality
 export const preprocessImage = (file, maxDimension = 2400) => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -17,7 +13,7 @@ export const preprocessImage = (file, maxDimension = 2400) => {
                 let width = img.width;
                 let height = img.height;
 
-                // Calculate new dimensions
+                // scale down if too big
                 if (width > height) {
                     if (width > maxDimension) {
                         height *= maxDimension / width;
@@ -34,22 +30,18 @@ export const preprocessImage = (file, maxDimension = 2400) => {
                 canvas.height = height;
                 const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
-                // Draw image to canvas (this also flattens orientation)
+                // draw image to canvas (also fixes mobile rotation issues)
                 ctx.drawImage(img, 0, 0, width, height);
 
-                // Only apply heavy processing for large images (likely desktop/scanned)
-                // For smaller images (likely mobile camera), skip to avoid degrading
-                // text quality which causes the LLM to return NA for structured fields
+                // only sharpen/enhance big images (probably scanned or from desktop)
+                // small images from phone cameras actually get worse with this
                 const originalMaxDim = Math.max(img.width, img.height);
                 if (originalMaxDim > 2000) {
-                    // Apply contrast enhancement for better text readability
                     applyContrastEnhancement(ctx, width, height);
-
-                    // Apply sharpening to counteract canvas resampling softness
                     applySharpen(ctx, width, height);
                 }
 
-                // Convert canvas back to blob
+                // convert back to JPEG
                 canvas.toBlob((blob) => {
                     if (blob) {
                         const processedFile = new File([blob], file.name, {
@@ -68,14 +60,11 @@ export const preprocessImage = (file, maxDimension = 2400) => {
     });
 };
 
-/**
- * Applies a mild contrast enhancement to make text stand out.
- * Uses a simple linear contrast stretch.
- */
+// bump up contrast a little so text pops more
 function applyContrastEnhancement(ctx, width, height) {
     const imageData = ctx.getImageData(0, 0, width, height);
     const data = imageData.data;
-    const factor = 1.1; // Mild contrast boost (1.0 = no change, reduced from 1.2 to preserve text)
+    const factor = 1.1; // keep it mild so we don't blow out the text
     const intercept = 128 * (1 - factor);
 
     for (let i = 0; i < data.length; i += 4) {
@@ -87,10 +76,7 @@ function applyContrastEnhancement(ctx, width, height) {
     ctx.putImageData(imageData, 0, 0);
 }
 
-/**
- * Applies a 3x3 unsharp-mask-style sharpening kernel to enhance text edges.
- * Uses a lightweight convolution that sharpens without introducing excessive noise.
- */
+// sharpen edges so text is crisper after resizing
 function applySharpen(ctx, width, height) {
     const imageData = ctx.getImageData(0, 0, width, height);
     const src = imageData.data;
@@ -126,9 +112,7 @@ function applySharpen(ctx, width, height) {
     ctx.putImageData(outputData, 0, 0);
 }
 
-/**
- * Clamps a value to [0, 255].
- */
+// keep pixel values in valid range
 function clamp(val) {
     return Math.max(0, Math.min(255, Math.round(val)));
 }

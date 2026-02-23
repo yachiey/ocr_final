@@ -7,8 +7,10 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
+// handles receipt scanning — sends image to Groq API and parses the result
 class OcrController extends Controller
 {
+    // main endpoint: takes an uploaded receipt image and returns structured data
     public function extract(Request $request)
     {
         $request->validate([
@@ -16,6 +18,7 @@ class OcrController extends Controller
         ]);
 
         try {
+            // convert uploaded image to base64 for the API
             $image = $request->file('image');
             $base64Image = base64_encode(file_get_contents($image->getRealPath()));
             $mimeType = $image->getMimeType();
@@ -23,13 +26,14 @@ class OcrController extends Controller
             $storedImagePath = 'storage/' . $image->store('ocr_images', 'public');
 
             $apiKey = env('GROQ_OCR');
-            $model = 'meta-llama/llama-4-scout-17b-16e-instruct'; // Updated to a valid vision model for Groq if the user provided one is invalid, but I will stick to user provided or a known working one. User provided 'meta-llama/llama-4-scout-17b-16e-instruct' which looks weird/custom. I will fallback to a standard vision model if that fails, but for now I will use what they gave or a safe default. 
+            $model = 'meta-llama/llama-4-scout-17b-16e-instruct';
 
 
             if (!$apiKey) {
                 return response()->json(['error' => 'Groq API Key (GROQ_OCR) not configured.'], 500);
             }
 
+            // send image to Groq vision API with our extraction prompt
             $response = Http::withHeaders([
                 'Authorization' => 'Bearer ' . $apiKey,
                 'Content-Type' => 'application/json',
@@ -141,13 +145,11 @@ CRITICAL RULES:
 
             $content = $response->json('choices.0.message.content');
 
-            // 1. Clean markdown code blocks if present (handles ```json, ```, ```JSON, etc.)
+            // try to parse the JSON — the LLM sometimes wraps it in markdown code blocks
             $cleanedContent = preg_replace('/^```(?:json)?\s*|\s*```$/i', '', trim($content));
-
-            // 2. Attempt to parse cleaned content
             $decoded = json_decode($cleanedContent, true);
 
-            // 3. Fallback: Strip ALL backticks and find JSON object
+            // fallback: strip all backticks and try to find a JSON object
             if (json_last_error() !== JSON_ERROR_NONE) {
                 $stripped = str_replace('`', '', $content);
                 if (preg_match('/\{.*\}/s', $stripped, $matches)) {
@@ -155,7 +157,7 @@ CRITICAL RULES:
                 }
             }
 
-            // 4. Ultimate Fallback: If still invalid, treat raw content as full_text
+            // last resort: if JSON still broken, just show the raw text so the user sees something
             if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
                 Log::warning('OCR JSON parse failed', [
                     'error' => json_last_error_msg(),
@@ -168,11 +170,13 @@ CRITICAL RULES:
                     'currency' => null,
                     'items' => [],
                     'lines' => [],
-                    'full_text' => $content // Show raw content so user sees something
+                    'full_text' => $content
                 ];
             }
 
-            // --- POST-PROCESSING: Total Validation & Computation ---
+            // --- post-processing: fix totals that the LLM might have gotten wrong ---
+
+            // add up item prices so we can cross-check later
             $calculatedItemSum = 0;
             if (isset($decoded['items']) && is_array($decoded['items'])) {
                 foreach ($decoded['items'] as $item) {
@@ -185,7 +189,7 @@ CRITICAL RULES:
                 $decoded['totals'] = [];
             }
 
-            // Helper function to safely get float or null
+            // safely grab a float from totals (returns null if missing)
             $getFloat = function ($key) use ($decoded) {
                 $val = $decoded['totals'][$key] ?? null;
                 return ($val !== null && is_numeric($val)) ? (float) $val : null;
@@ -197,10 +201,10 @@ CRITICAL RULES:
             $vatableSales = $getFloat('vatable_sales');
             $total = $getFloat('total');
 
-            // Consolidated Tax (prefer tax, then vat_amount)
+            // use whichever tax value we have (prefer tax over vat_amount)
             $effectiveTax = $tax ?? $vatAmount ?? 0;
 
-            // Log raw LLM values for debugging
+            // log what the LLM gave us (useful for debugging weird receipts)
             Log::info('OCR Post-Processing — LLM raw values', [
                 'subtotal' => $subtotal,
                 'total' => $total,
@@ -211,62 +215,53 @@ CRITICAL RULES:
                 'calculatedItemSum' => $calculatedItemSum,
             ]);
 
-            // --- Business Logic for VAT-Inclusive Receipts ---
-            // If the extracted total looks like it already includes tax (it's >= subtotal + effectiveTax)
-            // Or if subtotal and total are the same and tax is non-zero (common if AI puts total in subtotal)
+            // handle VAT-inclusive receipts (common in PH)
+            // the LLM often double-counts VAT or swaps subtotal/total
             if ($total !== null && $subtotal !== null) {
                 if (abs($total - ($subtotal + $effectiveTax)) < 0.05) {
-                    // Appears to be Normal case: Total = Subtotal + Tax.
-                    // BUT: check for BIR-style receipts where the LLM ALSO wrongly
-                    // computed total = subtotal + VAT. If item sum ≈ subtotal and
-                    // vatable_sales is present, subtotal IS the real gross total.
+                    // looks like total = subtotal + tax, which is normal
+                    // but check if the LLM double-counted VAT on BIR receipts
                     if (
                         $vatableSales !== null && $vatAmount !== null
                         && $calculatedItemSum > 0 && abs($subtotal - $calculatedItemSum) < 1.00
                     ) {
-                        // LLM double-counted VAT — subtotal is the real total
+                        // yep, LLM double-counted — subtotal is actually the real total
                         $total = $subtotal;
                         $subtotal = $total - $effectiveTax;
                     }
-                    // else: genuinely normal Total = Subtotal + Tax — no adjustment
+                    // otherwise it's genuinely total = subtotal + tax, all good
                 } elseif (abs($total - $subtotal) < 0.05 && $effectiveTax > 0) {
-                    // The AI likely put the Final Total in both fields or misidentified.
-                    // If VATable Sales is present, that's our true subtotal.
+                    // AI put the same value in both fields — figure out the real subtotal
                     if ($vatableSales !== null && $vatableSales > 0 && abs($total - ($vatableSales + $effectiveTax)) < 0.05) {
                         $subtotal = $vatableSales;
                     } elseif ($vatableSales !== null && $vatAmount !== null) {
-                        // BIR-style receipt where Total includes VAT + VAT Exempt sales.
-                        // Total is correct; adjust subtotal to pre-tax amount.
+                        // total already includes VAT, just fix subtotal
                         $subtotal = $total - $effectiveTax;
                     }
                 } elseif ($total < $subtotal && abs($subtotal - ($total + $effectiveTax)) < 0.05) {
-                    // Logic Flip: AI put the Total in Subtotal and some other value in Total.
-                    // This happens if the AI thinks Subtotal is the labeled "Total" from the receipt.
+                    // AI swapped total and subtotal — flip them back
                     $temp = $total;
                     $total = $subtotal;
                     $subtotal = $temp;
                 }
             }
 
-            // 1. If Total is missing, try to calculate it
+            // if total is missing, try to calculate it
             if ($total === null) {
                 if ($subtotal !== null) {
-                    // Detect VAT-inclusive receipts (e.g., PH BIR-style) where the
-                    // LLM put the receipt's labeled "Total" (which already includes VAT)
-                    // into "subtotal". Indicator: vatable_sales + vat_amount exist AND
-                    // item sum ≈ subtotal (meaning items are priced VAT-inclusive).
+                    // check if subtotal is actually the VAT-inclusive total (BIR receipts)
                     if (
                         $vatableSales !== null && $vatAmount !== null
                         && $calculatedItemSum > 0 && abs($subtotal - $calculatedItemSum) < 1.00
                     ) {
-                        // subtotal IS actually the gross total — don't add VAT again
+                        // subtotal is really the total — don't add VAT again
                         $total = $subtotal;
                         $subtotal = $total - $effectiveTax;
                     } else {
                         $total = $subtotal + $effectiveTax;
                     }
                 } elseif ($calculatedItemSum > 0) {
-                    // Same BIR check for when we only have item prices
+                    // same check but using item sum instead
                     if ($vatableSales !== null && $vatAmount !== null) {
                         $total = $calculatedItemSum;
                         $subtotal = $total - $effectiveTax;
@@ -276,7 +271,7 @@ CRITICAL RULES:
                 }
             }
 
-            // 2. If Subtotal is missing, try to calculate it
+            // if subtotal is missing, derive it from total
             if ($subtotal === null) {
                 if ($total !== null) {
                     $subtotal = $total - $effectiveTax;
@@ -285,32 +280,25 @@ CRITICAL RULES:
                 }
             }
 
-            // 3. Final sanity check: If Subtotal + Tax = Total is FALSE and we have VATable Sales
-            // In PH receipts: VATable Sales + VAT = Total.
+            // final sanity check: for PH receipts, VATable Sales + VAT = Total
             if ($vatableSales !== null && $vatAmount !== null && $total !== null) {
                 if (abs($total - ($vatableSales + $vatAmount)) < 0.05) {
-                    // Subtotal in our schema should ideally be the pre-tax amount.
                     $subtotal = $vatableSales;
                 }
             }
 
-            // 4. Update the decoded values
+            // write the corrected values back
             $decoded['totals']['subtotal'] = $subtotal;
             $decoded['totals']['total'] = $total;
-            // Ensure derived tax/vat is preserved if we calculated it into effectiveTax but didn't write it back yet
-            if ($tax === null && $vatAmount !== null) {
-                // If we have VAT amount but no Tax field, keeping Tax as null is fine, effectiveTax was used. 
-                // But if we calculated effectiveTax from Total-Subtotal (step 3), we already set it.
-            }
 
-            // Infer currency from merchant address if the LLM didn't return one
+            // if the LLM couldn't figure out the currency, guess it from the address
             if (empty($decoded['totals']['currency'])) {
                 $decoded['totals']['currency'] = $this->inferCurrencyFromAddress(
                     $decoded['merchant']['address'] ?? ''
                 );
             }
 
-            // Reconstruct full_text from lines if available (and we haven't already set it from raw)
+            // rebuild full_text from lines if we have them
             if (isset($decoded['lines']) && is_array($decoded['lines']) && !empty($decoded['lines'])) {
                 $decoded['full_text'] = implode("\n", $decoded['lines']);
             } elseif (empty($decoded['full_text']) && isset($decoded['lines'])) {
@@ -396,7 +384,6 @@ CRITICAL RULES:
     {
         $address = strtolower($address);
 
-        // Map of keywords (country names, cities, regions) to currency codes
         $mappings = [
             // Philippines
             'PHP' => ['philippines', 'manila', 'cebu', 'davao', 'quezon', 'makati', 'taguig', 'pasig', 'pasay', 'caloocan', 'muntinlupa', 'paranaque', 'marikina', 'cavite', 'laguna', 'bulacan', 'pampanga', 'batangas', 'rizal'],
