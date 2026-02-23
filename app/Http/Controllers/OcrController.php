@@ -26,7 +26,7 @@ class OcrController extends Controller
             $storedImagePath = 'storage/' . $image->store('ocr_images', 'public');
 
             $apiKey = env('GROQ_OCR');
-            $model = 'meta-llama/llama-4-scout-17b-16e-instruct';
+            $model = 'meta-llama/llama-4-maverick-17b-128e-instruct';
 
 
             if (!$apiKey) {
@@ -67,6 +67,8 @@ CRITICAL RULES:
 - Detect currency from symbols (e.g., "$", "P", "PHP").
 - Keep numeric values as numbers (no currency symbols).
 - DOUBLE CHECK the total amount. It should equal the labeled total on the image.
+- **DUPLICATE ITEMS**: If the receipt has multiple lines with the SAME item name, list EACH one as a SEPARATE entry in the items array. Do NOT merge them into one entry with combined quantity. Each physical line on the receipt = one item in the array. For example, if "BREAD" appears on 2 separate lines, you MUST have 2 separate item objects for "BREAD".
+- **ITEM COUNT CHECK**: After building the items array, count it. If the receipt shows "# ITEMS SOLD" or a similar count, your items array length MUST match that number. If it does not match, re-examine the receipt lines and add any missing items.
 - If the image is blurry, do your best to estimate but prefer null over a wild guess.
 
                                         IMPORTANT: For the "currency" field, you MUST determine the correct ISO 4217 currency code based on the merchant address, location, or any country indicators visible on the receipt. Examples:
@@ -172,6 +174,50 @@ CRITICAL RULES:
                     'lines' => [],
                     'full_text' => $content
                 ];
+            }
+
+            // --- post-processing: fix item counts using lines as source of truth ---
+            // the AI sometimes merges duplicates OR creates duplicates with wrong quantities
+            // the lines array is always accurate, so we use it to determine the real count
+            if (isset($decoded['items']) && is_array($decoded['items']) && isset($decoded['lines']) && is_array($decoded['lines'])) {
+                // collect unique item names and their prices
+                $uniqueItems = [];
+                foreach ($decoded['items'] as $item) {
+                    $name = $item['name'] ?? '';
+                    if ($name && !isset($uniqueItems[$name])) {
+                        $price = $item['total_price'] ?? $item['unit_price'] ?? null;
+                        if ($price !== null)
+                            $price = (float) $price;
+                        $uniqueItems[$name] = $price;
+                    }
+                }
+
+                // count how many times each unique item name appears in the lines
+                $lineCounts = [];
+                foreach ($decoded['lines'] as $line) {
+                    $trimmedLine = trim($line);
+                    foreach ($uniqueItems as $name => $price) {
+                        if (stripos($trimmedLine, $name) === 0) {
+                            $lineCounts[$name] = ($lineCounts[$name] ?? 0) + 1;
+                            break; // each line only counts for one item
+                        }
+                    }
+                }
+
+                // rebuild items array using line counts as the truth
+                $fixedItems = [];
+                foreach ($uniqueItems as $name => $price) {
+                    $count = $lineCounts[$name] ?? 1;
+                    for ($i = 0; $i < $count; $i++) {
+                        $fixedItems[] = [
+                            'name' => $name,
+                            'quantity' => 1,
+                            'unit_price' => $price,
+                            'total_price' => $price,
+                        ];
+                    }
+                }
+                $decoded['items'] = $fixedItems;
             }
 
             // --- post-processing: fix totals that the LLM might have gotten wrong ---
@@ -304,13 +350,6 @@ CRITICAL RULES:
             } elseif (empty($decoded['full_text']) && isset($decoded['lines'])) {
                 $decoded['full_text'] = '';
             }
-
-            $ocrResult = OcrResult::create($this->buildOcrResultPayload(
-                $request,
-                $decoded,
-                $content,
-                $storedImagePath
-            ));
 
             return response()->json([
                 'raw_text' => $content,
