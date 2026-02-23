@@ -1,119 +1,118 @@
+<!-- Camera UI - lets user take a photo of a receipt using their device camera -->
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue';
 import BaseButton from '@/Components/Atoms/BaseButton.vue';
 
 const emit = defineEmits(['capture', 'cancel']);
 
+// refs for the video and canvas elements
 const videoRef = ref(null);
 const canvasRef = ref(null);
 const stream = ref(null);
 const error = ref(null);
-const facingMode = ref('environment'); // 'user' or 'environment'
+const facingMode = ref('environment'); // rear camera by default
+const isFlashOn = ref(false);
+const hasFlash = ref(false);
 
-    const isFlashOn = ref(false);
-    const hasFlash = ref(false);
+// open the camera with high resolution settings
+const startCamera = async () => {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        error.value = "Camera access is not supported in this browser or requires a secure connection (HTTPS). If you are testing on mobile via a local IP, this is expected.";
+        return;
+    }
 
-    const startCamera = async () => {
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            error.value = "Camera access is not supported in this browser or requires a secure connection (HTTPS). If you are testing on mobile via a local IP, this is expected.";
-            return;
-        }
-
-        try {
-            if (stream.value) {
-                stopCamera();
-            }
-            
-            const constraints = {
-                video: {
-                    facingMode: facingMode.value,
-                    width: { ideal: 2560 },
-                    height: { ideal: 1920 }
-                }
-            };
-
-            stream.value = await navigator.mediaDevices.getUserMedia(constraints);
-            
-            // Check for flash capability
-            const track = stream.value.getVideoTracks()[0];
-            const capabilities = track.getCapabilities();
-            hasFlash.value = !!capabilities.torch;
-            isFlashOn.value = false;
-
-            if (videoRef.value) {
-                videoRef.value.srcObject = stream.value;
-            }
-            error.value = null;
-        } catch (err) {
-            console.error("Camera error:", err);
-            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-                 error.value = "Camera permission denied. Please allow access in your browser settings.";
-            } else {
-                 error.value = "Unable to access camera. Ensure no other app is using it.";
-            }
-        }
-    };
-
-    const stopCamera = () => {
+    try {
+        // stop any existing stream first
         if (stream.value) {
-            stream.value.getTracks().forEach(track => {
-                track.stop();
-            });
-            stream.value = null;
+            stopCamera();
         }
-    };
-
-    const toggleFlash = async () => {
-        if (!stream.value) return;
-        const track = stream.value.getVideoTracks()[0];
-        isFlashOn.value = !isFlashOn.value;
-        await track.applyConstraints({
-            advanced: [{ torch: isFlashOn.value }]
-        });
-    };
-
-    const switchCamera = () => {
-        facingMode.value = facingMode.value === 'user' ? 'environment' : 'user';
-        startCamera();
-    };
-
-    const captureImage = () => {
-        if (!videoRef.value || !canvasRef.value) return;
-
-        const video = videoRef.value;
-        const canvas = canvasRef.value;
-        const context = canvas.getContext('2d');
-
-        // Set canvas dimensions to match video stream
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-
-        // Draw video frame to canvas
-        context.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-        // Turn off flash after capture if it was on
-        if (isFlashOn.value) {
-            toggleFlash(); 
-        }
-
-        // Convert to PNG to avoid double JPEG compression
-        // (preprocessImage will convert to JPEG at optimal quality later)
-        canvas.toBlob((blob) => {
-            if (blob) {
-                const file = new File([blob], `capture-${Date.now()}.png`, { type: 'image/png' });
-                emit('capture', file);
-                stopCamera();
+        
+        const constraints = {
+            video: {
+                facingMode: facingMode.value,
+                width: { ideal: 2560 },
+                height: { ideal: 1920 }
             }
-        }, 'image/png');
-    };
+        };
 
-    onMounted(() => {
-        startCamera();
-    });
+        stream.value = await navigator.mediaDevices.getUserMedia(constraints);
+        
+        // check if device supports flash
+        const track = stream.value.getVideoTracks()[0];
+        const capabilities = track.getCapabilities();
+        hasFlash.value = !!capabilities.torch;
+        isFlashOn.value = false;
 
-    onUnmounted(() => {
-        stopCamera();
+        if (videoRef.value) {
+            videoRef.value.srcObject = stream.value;
+        }
+        error.value = null;
+    } catch (err) {
+        console.error("Camera error:", err);
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+             error.value = "Camera permission denied. Please allow access in your browser settings.";
+        } else {
+             error.value = "Unable to access camera. Ensure no other app is using it.";
+        }
+    }
+};
+
+// release the camera
+const stopCamera = () => {
+    if (stream.value) {
+        stream.value.getTracks().forEach(track => {
+            track.stop();
+        });
+        stream.value = null;
+    }
+};
+
+// turn flash on/off
+const toggleFlash = async () => {
+    if (!stream.value) return;
+    const track = stream.value.getVideoTracks()[0];
+    isFlashOn.value = !isFlashOn.value;
+    await track.applyConstraints({
+        advanced: [{ torch: isFlashOn.value }]
     });
+};
+
+// flip between front and back camera
+const switchCamera = () => {
+    facingMode.value = facingMode.value === 'user' ? 'environment' : 'user';
+    startCamera();
+};
+
+// take a photo from the video feed
+const captureImage = () => {
+    if (!videoRef.value || !canvasRef.value) return;
+
+    const video = videoRef.value;
+    const canvas = canvasRef.value;
+    const context = canvas.getContext('2d');
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    // turn off flash after taking the photo
+    if (isFlashOn.value) {
+        toggleFlash(); 
+    }
+
+    // save as PNG first to avoid double compression
+    // (preprocessImage will handle the JPEG conversion later)
+    canvas.toBlob((blob) => {
+        if (blob) {
+            const file = new File([blob], `capture-${Date.now()}.png`, { type: 'image/png' });
+            emit('capture', file);
+            stopCamera();
+        }
+    }, 'image/png');
+};
+
+onMounted(() => startCamera());
+onUnmounted(() => stopCamera());
 </script>
 
 <template>

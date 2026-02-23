@@ -1,3 +1,4 @@
+<!-- Shows the selected image with a scan animation while processing -->
 <script setup>
 import BaseButton from '@/Components/Atoms/BaseButton.vue';
 

@@ -1,3 +1,4 @@
+<!-- Displays the OCR extraction results - merchant info, items, totals, raw text -->
 <script setup>
 import Card from '@/Components/Atoms/Card.vue';
 import Typography from '@/Components/Atoms/Typography.vue';
@@ -18,15 +19,16 @@ const props = defineProps({
 
 defineEmits(['reset']);
 
-const copied = ref({});
-const showOriginal = ref(false);
+const copied = ref({}); // tracks which copy buttons show the checkmark
+const showOriginal = ref(false); // show/hide original image modal
 
+// copy text to clipboard (with fallback for HTTP/ngrok)
 const copyToClipboard = async (text, key) => {
     try {
         if (navigator.clipboard && window.isSecureContext) {
             await navigator.clipboard.writeText(text);
         } else {
-            // Fallback for non-secure contexts
+            // fallback: create a hidden textarea and use execCommand
             const textArea = document.createElement("textarea");
             textArea.value = text;
             textArea.style.position = "fixed";
@@ -46,14 +48,15 @@ const copyToClipboard = async (text, key) => {
             }
         }
         
+        // show checkmark for 2 seconds
         copied.value[key] = true;
         setTimeout(() => { copied.value[key] = false; }, 2000);
     } catch (err) {
         console.error('Copy failed', err);
-        // Optional: Show a toast or alert to the user
     }
 };
 
+// add currency symbol based on detected currency
 const formatCurrency = (amount) => {
     if (!amount && amount !== 0) return 'N/A';
     const currency = props.results.parsed?.totals?.currency || props.results.parsed?.currency || 'PHP';

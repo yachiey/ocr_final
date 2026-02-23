@@ -1,3 +1,4 @@
+<!-- Drag-and-drop upload zone + browse/camera buttons -->
 <script setup>
 import BaseButton from '@/Components/Atoms/BaseButton.vue';
 import { ref } from 'vue';
@@ -5,12 +6,14 @@ import { ref } from 'vue';
 const emit = defineEmits(['file-selected', 'open-camera']);
 
 const fileInput = ref(null);
-const dragging = ref(false);
+const dragging = ref(false); // tracks if user is dragging a file over the zone
 
+// open the file picker dialog
 const triggerFileInput = () => {
     fileInput.value.click();
 };
 
+// grab the file from either input or drag event
 const onFileChange = (e) => {
     const files = e.target.files || e.dataTransfer.files;
     if (files.length) {
@@ -18,6 +21,7 @@ const onFileChange = (e) => {
     }
 };
 
+// handle file drop
 const onDrop = (e) => {
     dragging.value = false;
     onFileChange(e);
